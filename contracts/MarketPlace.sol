@@ -82,11 +82,11 @@ contract MarketPlace is Ownable {
 
     function approveSaleRequest(string memory productId) public onlyOwner {
         require(isInWaitList(productId), "This productId is invalid");
-        Product memory product = _waitingProducts[productId];
+        Product storage product = _waitingProducts[productId];
         product.status = ProductState.INSALE;
         _inSaleProducts.push(product);
-
         emit PutOnSaleRequestApproved(productId, product.owner, product.price);
+        delete _waitingProducts[productId];
     }
 
     function changeMarketStatus(bool newState) public onlyOwner {
