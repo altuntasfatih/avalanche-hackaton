@@ -9,20 +9,17 @@ contract MarketPlace is Ownable {
     bool _isActive;
     uint256 _publishFee;
 
-    mapping(string => Product) _waitingProducts;
-
-    Product[] _inSaleProducts;
-    Product[] _soldProdcuts;
+    mapping(string => Product) _products;
 
     enum ProductState {
         WAITING,
-        INSALE,
+        ONSALE,
         SOLD
     }
     struct Product {
         string id;
         address owner;
-        ProductState status;
+        ProductState state;
         uint256 price;
     }
 
@@ -33,70 +30,108 @@ contract MarketPlace is Ownable {
         emit MarketPlaceCreated(name, _msgSender(), publishFee);
     }
 
-    function getCurrent()
-        public
-        view
-        returns (
-            string memory,
-            bool,
-            uint256,
-            address,
-            Product[] memory,
-            Product[] memory
-        )
-    {
-        return (
-            _name,
-            _isActive,
-            _publishFee,
-            owner(),
-            _inSaleProducts,
-            _soldProdcuts
-        );
-    }
-
-    function putOnSale(
-        string memory id,
+    function requestNewListing(
+        string memory productId,
         string memory authToken,
         uint256 price
     ) public payable onlyMarketActive {
         require(msg.value == _publishFee, "Insufficient publish fee");
         Product memory product = Product(
-            id,
+            productId,
             _msgSender(),
             ProductState.WAITING,
             price
         );
-        _waitingProducts[id] = product;
-        emit PutOnSaleRequestReceived(id, _msgSender(), price, authToken);
+        _products[productId] = product;
+        emit ListingRequestReceived(productId, _msgSender(), price, authToken);
     }
 
-    function getProductList()
+    function putListing(string memory productId, uint256 price) public payable {
+        require(msg.value == _publishFee, "Insufficient publish fee");
+        Product storage product = _getProduct(productId);
+        require(
+            product.state == ProductState.SOLD,
+            "This productId is not expected state"
+        );
+        require(
+            product.owner == _msgSender(),
+            "Only owner of product put on listing"
+        );
+        product.price = price;
+        product.state = ProductState.ONSALE;
+        emit ProductListed(productId, _msgSender(), price);
+    }
+
+    function approveRequestListing(string memory productId) public onlyOwner {
+        Product storage product = _getProduct(productId);
+        require(
+            product.state == ProductState.WAITING,
+            "This productId is not expected state"
+        );
+        product.state = ProductState.ONSALE;
+        emit ListingRequestApproved(productId, product.owner, product.price);
+    }
+
+    function removeFromListing(string memory productId, string memory token)
+        public
+    {
+        Product storage product = _getProduct(productId);
+        require(
+            product.state == ProductState.SOLD,
+            "This productId is not expected state"
+        );
+        require(
+            product.owner == _msgSender(),
+            "Only owner of product remove from listing"
+        );
+        emit ListingRemoved(productId, token, _msgSender());
+    }
+
+    function buy(string memory productId) public payable onlyMarketActive {
+        Product storage product = _getProduct(productId);
+        require(
+            product.state == ProductState.ONSALE,
+            "The product is not OnSale status"
+        );
+        require(msg.value == product.price, "Insufficient msg.value to buy");
+        address seller = product.owner;
+
+        payable(seller).transfer(product.price);
+
+        product.owner = _msgSender();
+        product.state = ProductState.SOLD;
+
+        emit ProductSold(productId, seller, _msgSender(), msg.value);
+    }
+
+    function deactivate() public onlyOwner {
+        require(_isActive == true, "Market is already deactivated");
+        _isActive = false;
+        emit MarketDeactivated();
+    }
+
+    function activate() public onlyOwner {
+        require(_isActive == false, "Market is already activated");
+        _isActive = true;
+        emit MarketActivated();
+    }
+
+    function getProduct(string memory productId)
         public
         view
-        onlyMarketActive
-        returns (Product[] memory)
+        returns (Product memory)
     {
-        return _inSaleProducts;
+        return getProduct(productId);
     }
 
-    function approveSaleRequest(string memory productId) public onlyOwner {
-        require(isInWaitList(productId), "This productId is invalid");
-        Product storage product = _waitingProducts[productId];
-        product.status = ProductState.INSALE;
-        _inSaleProducts.push(product);
-        emit PutOnSaleRequestApproved(productId, product.owner, product.price);
-        delete _waitingProducts[productId];
-    }
-
-    function changeMarketStatus(bool newState) public onlyOwner {
-        require(_isActive != newState, "State is already same");
-        _isActive = newState;
-        emit MarketPlaceStateChanged(newState);
-    }
-
-    function isInWaitList(string memory id) public view returns (bool) {
-        return _waitingProducts[id].owner != address(0x0);
+    function _getProduct(string memory productId)
+        private
+        view
+        returns (Product storage)
+    {
+        Product storage product = _products[productId];
+        require(product.owner != address(0x0), "The product is not exist");
+        return product;
     }
 
     modifier onlyMarketActive() {
@@ -109,13 +144,26 @@ contract MarketPlace is Ownable {
         address owner,
         uint256 publishFee
     );
-
-    event PutOnSaleRequestReceived(
-        string id,
+    event MarketDeactivated();
+    event MarketActivated();
+    event ListingRequestReceived(
+        string productId,
         address owner,
         uint256 price,
         string token
     );
-    event PutOnSaleRequestApproved(string id, address owner, uint256 price);
-    event MarketPlaceStateChanged(bool newState);
+    event ListingRequestApproved(
+        string productId,
+        address owner,
+        uint256 price
+    );
+    event ProductListed(string productId, address owner, uint256 price);
+    event ListingRemoved(string productId, string token, address owner);
+
+    event ProductSold(
+        string productId,
+        address seller,
+        address buyer,
+        uint256 price
+    );
 }
