@@ -12,7 +12,7 @@ contract MarketPlace is Ownable {
     mapping(string => Product) _waitingProducts;
 
     Product[] _inSaleProducts;
-    Product[] _soldProdcuts;
+    Product[] _soldProducts;
 
     enum ProductState {
         WAITING,
@@ -33,6 +33,25 @@ contract MarketPlace is Ownable {
         emit MarketPlaceCreated(name, _msgSender(), publishFee);
     }
 
+    function getMyProducts() public view returns (Product[] storage, Product[] storage) {
+        Product[] storage myInSaleProducts = [];
+        Product[] storage mySoldProducts = [];
+        for (uint256 index = 0; index < _inSaleProducts.length; index++) {
+            Product storage current_product = _inSaleProducts[index];
+            if (current_product.owner == _msgSender()) {
+                myInSaleProducts.push(current_product);
+            }
+        }
+        
+        for (uint256 index = 0; index < _soldProducts.length; index++) {
+            Product storage current_product = _soldProducts[index];
+            if (current_product.owner == _msgSender()) {
+                mySoldProducts.push(current_product);
+            }
+        }
+        return (myInSaleProducts, mySoldProducts);
+    }
+
     function getCurrent()
         public
         view
@@ -51,7 +70,7 @@ contract MarketPlace is Ownable {
             _publishFee,
             owner(),
             _inSaleProducts,
-            _soldProdcuts
+            _soldProducts
         );
     }
 

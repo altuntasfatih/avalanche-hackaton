@@ -134,6 +134,18 @@ contract('MarketPlace', function ([owner, user1, user2, user3, user4, user5, use
         expect(result).to.have.lengthOf(4);
     });
 
+    it('get my Products', async function () {
+        //given
+        await addItemForSale(this.market, 'product-1', 'token-1', new BN(100000), user1);
+        await addItemForSale(this.market, 'product-2', 'token-2', new BN(100000), user1);
+
+        //when
+        const result = await this.market.getMyProducts({ from: user1 });
+
+        //then
+        expect(result).to.have.lengthOf(2);
+    });
+
     async function addItemForSale(market, productId, token, price, user) {
         await market.putOnSale(productId, token, price, { from: user, value: publishFee })
         await market.approveSaleRequest(productId, { from: owner })
