@@ -55,7 +55,7 @@ contract MarketPlace is Ownable {
         );
     }
 
-    function PutOnSale(
+    function putOnSale(
         string memory id,
         string memory authToken,
         uint256 price
@@ -69,6 +69,15 @@ contract MarketPlace is Ownable {
         );
         _waitingProducts[id] = product;
         emit PutOnSaleRequestReceived(id, _msgSender(), price, authToken);
+    }
+
+    function getProductList()
+        public
+        view
+        onlyMarketActive
+        returns (Product[] memory)
+    {
+        return _inSaleProducts;
     }
 
     function approveSaleRequest(string memory productId) public onlyOwner {
